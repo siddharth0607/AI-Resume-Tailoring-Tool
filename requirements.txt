@@ -1,10 +1,5 @@
 streamlit
 langchain
-pypdf
 pdfplumber
 ollama
-tiktoken
 python-docx
-openpyxl
-fpdf
-PyMuPDF
