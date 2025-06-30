@@ -2,7 +2,9 @@ streamlit
 openai
 langchain
 langchain-community
-deepdoctection[base,layoutparser]
+PyPDF2
+pdfplumber
+deepdoctection
 torch
 torchvision
 torchaudio
