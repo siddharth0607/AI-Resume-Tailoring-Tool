@@ -3,7 +3,7 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from resume_parser.deepdoc_parser import (
+from resume_parser.parser import (
     initialize_analyzer,
     parse_resume_sections,
     get_section_summary,
