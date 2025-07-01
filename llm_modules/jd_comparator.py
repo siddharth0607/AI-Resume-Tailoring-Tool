@@ -1,19 +1,14 @@
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
+import json
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def compare_resume_with_jd(parsed_resume: dict, job_description: str) -> dict:
-    """
-    Advanced resume-JD comparison that handles cross-domain relevance,
-    semantic matching, and nuanced skill assessment across all industries.
-    """
-    from openai import OpenAI
-    from dotenv import load_dotenv
-    import os, json
-    
+    """Performs advanced semantic comparison between a parsed resume and a job description"""
+
     load_dotenv()
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     
@@ -150,9 +145,7 @@ def compare_resume_with_jd(parsed_resume: dict, job_description: str) -> dict:
 
 
 def get_domain_specific_insights(resume_analysis: dict) -> dict:
-    """
-    Extract domain-specific insights and recommendations from the analysis.
-    """
+    """Extract domain-specific insights and recommendations from the analysis"""
     if 'error' in resume_analysis:
         return {"error": "Cannot analyze due to upstream error"}
     
@@ -185,9 +178,7 @@ def get_domain_specific_insights(resume_analysis: dict) -> dict:
 
 
 def generate_interview_focus_areas(resume_analysis: dict) -> list:
-    """
-    Generate focused interview topics based on the resume analysis.
-    """
+    """Generate focused interview topics based on the resume analysis"""
     if 'error' in resume_analysis:
         return ["General interview due to analysis error"]
     
