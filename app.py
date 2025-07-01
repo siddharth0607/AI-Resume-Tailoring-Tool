@@ -176,7 +176,12 @@ if section == "Generate Cover Letter":
 
     if st.session_state.get("formatted") and st.session_state.get("jd_text"):
         name = st.session_state.get("extracted_fields", {}).get("name", "Candidate")
+
         company_name = st.text_input("Company Name", value="the company")
+        role_title = st.text_input("Role Title", value="this position")
+
+        tone_options = ["professional", "friendly", "confident", "enthusiastic", "conversational"]
+        tone = st.selectbox("Tone of the Letter", tone_options, index=0)
 
         if st.button("Generate Cover Letter"):
             with st.spinner("Generating..."):
@@ -184,7 +189,9 @@ if section == "Generate Cover Letter":
                     formatted_resume=st.session_state["formatted"],
                     job_description=st.session_state["jd_text"],
                     candidate_name=name,
-                    company_name=company_name
+                    company_name=company_name,
+                    role_title=role_title,
+                    tone=tone
                 )
                 st.text_area("Cover Letter", value=cover_letter, height=400)
                 st.download_button("Download Cover Letter", cover_letter, file_name="cover_letter.txt")
