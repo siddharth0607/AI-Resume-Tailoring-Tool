@@ -4,6 +4,8 @@ from resume_parser.parser import parse_resume_sections, initialize_analyzer
 from llm_modules.formatter import format_resume_sections_with_llm
 from llm_modules.jd_comparator import compare_resume_with_jd, generate_interview_focus_areas
 from llm_modules.bullet_rewriter import optimize_resume_bullets, get_top_optimized_bullets
+from utils.field_extractor import extract_fields_from_resume
+from llm_modules.cover_letter import generate_cover_letter
 
 st.set_page_config(page_title="AI Resume Tailor", layout="wide")
 
@@ -16,6 +18,7 @@ section = st.sidebar.radio(
         "LLM-Formatted Resume",
         "Resume vs JD Analysis",
         "Bullet Point Optimization",
+        "Generate Cover Letter",
     ]
 )
 
@@ -42,6 +45,11 @@ if section == "Upload Resume & JD":
         st.session_state["parsed"] = parsed
         st.session_state["formatted"] = formatted
         st.success("Resume parsed and formatted successfully.")
+
+        raw_resume_text = "\n".join(st.session_state["parsed"].values())
+        extracted_fields = extract_fields_from_resume(raw_resume_text)
+
+        st.session_state["extracted_fields"] = extracted_fields
 
     if uploaded_jd:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp_jd_file:
@@ -162,3 +170,23 @@ if section == "Bullet Point Optimization":
                 st.markdown(f"- **Key Themes:** {', '.join(summary.get('key_themes_emphasized', []))}")
     else:
         st.warning("Please upload both Resume and JD.")
+
+if section == "Generate Cover Letter":
+    st.title("AI-Generated Cover Letter")
+
+    if st.session_state.get("formatted") and st.session_state.get("jd_text"):
+        name = st.session_state.get("extracted_fields", {}).get("name", "Candidate")
+        company_name = st.text_input("Company Name", value="the company")
+
+        if st.button("Generate Cover Letter"):
+            with st.spinner("Generating..."):
+                cover_letter = generate_cover_letter(
+                    formatted_resume=st.session_state["formatted"],
+                    job_description=st.session_state["jd_text"],
+                    candidate_name=name,
+                    company_name=company_name
+                )
+                st.text_area("Cover Letter", value=cover_letter, height=400)
+                st.download_button("Download Cover Letter", cover_letter, file_name="cover_letter.txt")
+    else:
+        st.warning("Please upload both resume and job description first.")
