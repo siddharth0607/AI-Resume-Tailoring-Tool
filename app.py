@@ -6,7 +6,7 @@ from llm_modules.jd_comparator import compare_resume_with_jd, generate_interview
 from llm_modules.bullet_rewriter import optimize_resume_bullets, get_top_optimized_bullets
 from utils.field_extractor import extract_fields_from_resume
 from llm_modules.cover_letter import generate_cover_letter
-from llm_modules.resume_rewriter import rewrite_resume_sections_with_llm
+from llm_modules.resume_rewriter import rewrite_resume
 
 st.set_page_config(page_title="AI Resume Tailor", layout="wide")
 
@@ -207,7 +207,7 @@ if section == "Tailored Resume (Rewritten)":
     if st.session_state.get("formatted") and st.session_state.get("jd_text"):
         if rewrite_toggle:
             with st.spinner("Rewriting your resume with JD context..."):
-                rewritten = rewrite_resume_sections_with_llm(
+                rewritten = rewrite_resume(
                     resume_sections=st.session_state["formatted"],
                     job_description=st.session_state["jd_text"]
                 )
