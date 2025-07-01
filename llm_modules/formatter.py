@@ -6,6 +6,7 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def format_resume_sections_with_llm(sections: dict) -> dict:
+    """Formats unstructured resume sections using GPT-4o to produce clean, professional text"""
     formatted_sections = {}
 
     for section, content in sections.items():
@@ -49,6 +50,6 @@ def format_resume_sections_with_llm(sections: dict) -> dict:
             formatted_sections[section] = formatted_text
 
         except Exception as e:
-            formatted_sections[section] = f"[Error formatting section:\n\n{e}\n]"
+            formatted_sections[section] = f"[Error formatting section: {e}]"
 
     return formatted_sections
