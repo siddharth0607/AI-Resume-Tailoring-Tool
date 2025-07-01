@@ -19,9 +19,16 @@ def initialize_analyzer():
         raise
 
 def fix_spacing(text: str) -> str:
-    text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)
-    text = re.sub(r'(?<=[a-zA-Z])(?=[0-9])', ' ', text)
-    return re.sub(r'\s+', ' ', text).strip()
+    """Adds missing spaces between glued words based on heuristics"""
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+    text = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', text)
+    text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
+    text = re.sub(r'\bcontent\s*based\b', 'content-based', text, flags=re.IGNORECASE)
+    text = re.sub(r'\breal\s*time\b', 'real-time', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bproduction\s*grade\b', 'production-grade', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    return text
 
 def is_section_heading(line: str, all_lines: List[str], index: int) -> bool:
     line = line.strip()
@@ -114,7 +121,7 @@ def normalize_heading(text: str) -> str:
 
         'skills': 'Skills',
         'technical skills': 'Skills',
-        'technologies' : 'skills',
+        'technologies' : 'Skills',
         'core competencies': 'Skills',
         'competencies': 'Skills',
         'expertise': 'Skills',
@@ -180,7 +187,7 @@ def get_section_summary(sections: Dict[str, str]) -> Dict[str, int]:
     return summary
 
 def parse_resume_sections(pdf_path: str, analyzer) -> Dict[str, str]:
-    """Parse resume using pdfplumber"""
+    """Parse and extract structured resume sections from PDF"""
     if not os.path.exists(pdf_path):
         logger.error(f"PDF file not found: {pdf_path}")
         return {}
@@ -226,12 +233,13 @@ def parse_resume_sections(pdf_path: str, analyzer) -> Dict[str, str]:
             content = ' '.join(lines)
             if len(content.strip()) > 5:
                 result_sections[section] = content.strip()
+
     
     logger.info(f"Successfully parsed {len(result_sections)} sections")
     return result_sections
 
 def debug_parse_resume(pdf_path: str, analyzer) -> Dict[str, str]:
-    """Debug version that shows what's happening during parsing"""
+    """Print debug info while parsing resume from PDF"""
     if not os.path.exists(pdf_path):
         print(f"PDF file not found: {pdf_path}")
         return {}
