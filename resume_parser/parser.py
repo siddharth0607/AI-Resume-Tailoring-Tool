@@ -142,7 +142,6 @@ def normalize_heading(text: str) -> str:
         'accomplishments': 'Achievements',
         'awards': 'Achievements',
         'honors': 'Achievements',
-        'positions of responsibility': 'Achievements',
         'summary': 'Summary',
         'professional summary': 'Summary',
         'profile': 'Summary',
@@ -158,6 +157,7 @@ def normalize_heading(text: str) -> str:
         'languages': 'Languages',
         'publications': 'Publications',
         'research': 'Publications',
+        'positions of responsibility': 'Volunteer',
         'volunteer': 'Volunteer',
         'volunteer experience': 'Volunteer',
         'activities': 'Activities',
@@ -212,7 +212,30 @@ def parse_resume_sections(pdf_path: str, analyzer) -> Dict[str, str]:
 
         logger.info(f"Extracted {len(all_lines)} lines total")
 
+        skip_indices = set()
+        for idx, line in enumerate(all_lines[:5]):
+            stripped = line.strip()
+
+            if re.fullmatch(r"[A-Z][a-z]+(\s+[A-Z][a-z]+)+", stripped):
+                skip_indices.add(idx)
+                continue
+
+            if re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', stripped):
+                skip_indices.add(idx)
+                continue
+
+            if re.search(r'[\+]?[\d\s\-()]{10,}', stripped):
+                skip_indices.add(idx)
+                continue
+
+            if re.search(r'(https?://|www\.|[a-zA-Z0-9]+\.(com|org|net|io|in|ai))', stripped):
+                skip_indices.add(idx)
+                continue
+
         for i, line in enumerate(all_lines):
+            if i in skip_indices:
+                continue
+
             cleaned_line = fix_spacing(clean_text(line))
             if len(cleaned_line) < 2:
                 continue
@@ -243,12 +266,13 @@ def parse_resume_sections(pdf_path: str, analyzer) -> Dict[str, str]:
     if contact_info.get("phone"):
         header_info.append(f"Phone: {contact_info['phone']}")
 
-    link_pattern = r'(https?://[^\s)]+|www\.[^\s)]+|linkedin\.com/\S+|github\.com/\S+)'
+    link_pattern = r'(https?://[^\s)]+|www\.[^\s)]+|[a-zA-Z0-9]+\.(com|org|net|in|ai|io)/[^\s)]*)'
     top_text = ' '.join(all_lines[:10])
     links = re.findall(link_pattern, top_text, flags=re.IGNORECASE)
-    if links:
-        for link in links:
-            header_info.append(f"Link: {link}")
+    for match in links:
+        full_link = match[0]
+        if full_link not in header_info:
+            header_info.append(f"Link: {full_link}")
 
     if "Header" in result_sections and header_info:
         combined_header = result_sections["Header"] + "\n" + '\n'.join(header_info)

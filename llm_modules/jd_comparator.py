@@ -6,17 +6,13 @@ import json
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def compare_resume_with_jd(resume_data: dict, job_description: str, use_formatted: bool = True) -> dict:
+def compare_resume_with_jd(parsed_resume: dict, job_description: str) -> dict:
     """Performs advanced semantic comparison between a parsed resume and a job description"""
-    resume_sections = (
-        resume_data.get("formatted") if use_formatted and "formatted" in resume_data
-        else resume_data.get("parsed", resume_data)
-    )
 
     load_dotenv()
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     
-    resume_text = "\n\n".join(f"{section}:\n{content}" for section, content in resume_sections.items())
+    resume_text = "\n\n".join(f"{section}:\n{content}" for section, content in parsed_resume.items())
     
     try:
         response = client.chat.completions.create(
@@ -129,7 +125,7 @@ def compare_resume_with_jd(resume_data: dict, job_description: str, use_formatte
             'model_used': 'gpt-4o',
             'analysis_type': 'comprehensive_semantic_matching',
             'timestamp': str(os.getenv('TIMESTAMP', 'unknown')),
-            'resume_sections_analyzed': list(resume_sections.keys())
+            'resume_sections_analyzed': list(parsed_resume.keys())
         }
         
         return result

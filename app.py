@@ -6,8 +6,6 @@ from llm_modules.jd_comparator import compare_resume_with_jd, generate_interview
 from llm_modules.bullet_rewriter import optimize_resume_bullets, get_top_optimized_bullets
 from utils.field_extractor import extract_fields_from_resume
 from llm_modules.cover_letter import generate_cover_letter
-from llm_modules.resume_rewriter import rewrite_resume
-from utils.pdf_exporter import export_to_pdf
 
 st.set_page_config(page_title="AI Resume Tailor", layout="wide")
 
@@ -21,10 +19,8 @@ section = st.sidebar.radio(
         "Resume vs JD Analysis",
         "Bullet Point Optimization",
         "Generate Cover Letter",
-        "Tailored Resume (Rewritten)"
     ]
 )
-rewrite_toggle = st.sidebar.checkbox("Enable JD-Aware Resume Rewrite")
 
 if "parsed" not in st.session_state:
     st.session_state["parsed"] = None
@@ -74,22 +70,19 @@ if section == "View Resume Sections":
 
 if section == "LLM-Formatted Resume":
     st.title("LLM-Enhanced Resume Formatting")
-    if st.session_state["formatted"]:
-        for section, content in st.session_state["formatted"].items():
-            st.markdown(f"### {section}")
-            st.markdown(content, unsafe_allow_html=True)
+
+    formatted_sections = st.session_state.get("formatted")
+    if formatted_sections:
+        for _, formatted_text in formatted_sections.items():
+            st.markdown(formatted_text, unsafe_allow_html=True)
 
     else:
         st.warning("Resume not formatted yet.")
 
 if section == "Resume vs JD Analysis":
     st.title("Resume vs JD Semantic Analysis")
-    if st.session_state.get("parsed") and st.session_state.get("jd_text"):
-        resume_data = {
-            "parsed": st.session_state["parsed"],
-            "formatted": st.session_state.get("formatted")
-        }
-        result = compare_resume_with_jd(resume_data, st.session_state["jd_text"])
+    if st.session_state["parsed"] and st.session_state["jd_text"]:
+        result = compare_resume_with_jd(st.session_state["parsed"], st.session_state["jd_text"])
 
         if "error" in result:
             st.error("Error during JD comparison.")
@@ -206,45 +199,3 @@ if section == "Generate Cover Letter":
                 st.download_button("Download Cover Letter", cover_letter, file_name="cover_letter.txt")
     else:
         st.warning("Please upload both resume and job description first.")
-
-if section == "Tailored Resume (Rewritten)":
-    st.title("Tailored Resume Based on JD")
-
-    if st.session_state.get("formatted") and st.session_state.get("jd_text"):
-        if rewrite_toggle:
-            with st.spinner("Rewriting your resume with JD context..."):
-                rewritten = rewrite_resume(
-                    resume_sections=st.session_state["formatted"],
-                    job_description=st.session_state["jd_text"]
-                )
-                st.session_state["rewritten"] = rewritten
-                st.success("Resume tailored successfully.")
-        else:
-            st.info("Enable the rewrite toggle in the sidebar to generate tailored resume.")
-
-        if "rewritten" in st.session_state:
-            for section_name, rewritten_content in st.session_state["rewritten"].items():
-                st.markdown(f"### {section_name}")
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**Original:**")
-                    st.text_area("", st.session_state["formatted"].get(section_name, ""), height=180)
-                with col2:
-                    st.markdown("**Rewritten:**")
-                    st.text_area("", rewritten_content, height=180, key=f"rewritten_{section_name}")
-
-            st.markdown("---")
-            st.subheader("Export Tailored Resume as PDF")
-            template_choice = st.selectbox("Choose Template", ["modern.html"])
-            if st.button("Download Tailored Resume as PDF"):
-                pdf_bytes = export_to_pdf(st.session_state["rewritten"], template_choice)
-                st.download_button(
-                    label="Download PDF",
-                    data=pdf_bytes,
-                    file_name="Tailored_Resume.pdf",
-                    mime="application/pdf"
-                )
-        else:
-            st.warning("No rewritten content found.")
-    else:
-        st.warning("Please upload your resume and job description first.")
