@@ -7,6 +7,7 @@ from llm_modules.bullet_rewriter import optimize_resume_bullets, get_top_optimiz
 from utils.field_extractor import extract_fields_from_resume
 from llm_modules.cover_letter import generate_cover_letter
 from llm_modules.resume_rewriter import rewrite_resume
+from utils.pdf_exporter import export_to_pdf
 
 st.set_page_config(page_title="AI Resume Tailor", layout="wide")
 
@@ -75,8 +76,9 @@ if section == "LLM-Formatted Resume":
     st.title("LLM-Enhanced Resume Formatting")
     if st.session_state["formatted"]:
         for section, content in st.session_state["formatted"].items():
-            st.markdown(f"**{section}**")
-            st.text_area(label="", value=content, height=150, key=f"formatted_{section}")
+            st.markdown(f"### {section}")
+            st.markdown(content, unsafe_allow_html=True)
+
     else:
         st.warning("Resume not formatted yet.")
 
@@ -218,7 +220,7 @@ if section == "Tailored Resume (Rewritten)":
 
         if "rewritten" in st.session_state:
             for section_name, rewritten_content in st.session_state["rewritten"].items():
-                st.markdown(f"### ✨ {section_name}")
+                st.markdown(f"### {section_name}")
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Original:**")
@@ -226,6 +228,18 @@ if section == "Tailored Resume (Rewritten)":
                 with col2:
                     st.markdown("**Rewritten:**")
                     st.text_area("", rewritten_content, height=180, key=f"rewritten_{section_name}")
+
+            st.markdown("---")
+            st.subheader("Export Tailored Resume as PDF")
+            template_choice = st.selectbox("Choose Template", ["modern.html"])
+            if st.button("Download Tailored Resume as PDF"):
+                pdf_bytes = export_to_pdf(st.session_state["rewritten"], template_choice)
+                st.download_button(
+                    label="Download PDF",
+                    data=pdf_bytes,
+                    file_name="Tailored_Resume.pdf",
+                    mime="application/pdf"
+                )
         else:
             st.warning("No rewritten content found.")
     else:

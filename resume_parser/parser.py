@@ -5,11 +5,12 @@ import logging
 from typing import Dict, List
 import os
 
+from utils.field_extractor import extract_fields_from_resume
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def initialize_analyzer():
-    """Initialize a simple PDF parser"""
     try:
         import pdfplumber
         logger.info("PDF parser initialized successfully")
@@ -18,8 +19,15 @@ def initialize_analyzer():
         logger.error(f"Required libraries not installed: {e}")
         raise
 
+def clean_text(text: str) -> str:
+    if not text:
+        return ""
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'[^\w\s\-.,()/@#&+:;\'\"!?]', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
 def fix_spacing(text: str) -> str:
-    """Adds missing spaces between glued words based on heuristics"""
     text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
     text = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', text)
     text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
@@ -27,14 +35,19 @@ def fix_spacing(text: str) -> str:
     text = re.sub(r'\breal\s*time\b', 'real-time', text, flags=re.IGNORECASE)
     text = re.sub(r'\bproduction\s*grade\b', 'production-grade', text, flags=re.IGNORECASE)
     text = re.sub(r'\s+', ' ', text).strip()
-
     return text
 
 def is_section_heading(line: str, all_lines: List[str], index: int) -> bool:
     line = line.strip()
     line_lower = line.lower()
+    words = line.split()
 
     if len(line) > 80 or len(line) < 3:
+        return False
+
+    if (len(words) >= 2 and len(words) <= 3 and 
+        all(word.istitle() and word.isalpha() for word in words) and 
+        len(line) < 50 and index < 5):
         return False
 
     if ':' in line and len(line.split()) < 5:
@@ -42,8 +55,21 @@ def is_section_heading(line: str, all_lines: List[str], index: int) -> bool:
         if key_part.lower() not in ['summary', 'objective']:
             return False
 
-    content_indicators = ['@', 'http', 'www', '.com', '.org', 'linkedin', 'github']
+    content_indicators = ['@', 'http', 'www', '.com', '.org', 'linkedin', 'github', 
+                         'phone', 'tel', 'email', 'gmail', 'yahoo', 'outlook']
     if any(ind in line_lower for ind in content_indicators):
+        return False
+
+    if re.match(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", line, re.IGNORECASE):
+        return False
+
+    if re.fullmatch(r"[A-Za-z]{3,10}[0-9]{2,4}", line):
+        return False
+
+    if sum(c.isalpha() for c in line) < len(line) * 0.5:
+        return False
+
+    if re.search(r'[\+]?[\d\s\-\(\)]{10,}', line):
         return False
 
     section_keywords = [
@@ -55,48 +81,26 @@ def is_section_heading(line: str, all_lines: List[str], index: int) -> bool:
         'core competencies', 'career objective', 'professional summary',
         'personal details', 'contact information', 'positions of responsibility'
     ]
-    if any(re.fullmatch(rf"\b{re.escape(keyword)}\b", line_lower) for keyword in section_keywords):
+
+    if any(keyword == line_lower for keyword in section_keywords):
+        return True
+
+    if any(keyword in line_lower and len(line_lower.split()) <= 3 for keyword in section_keywords):
         return True
 
     if line.isupper() and 4 <= len(line) <= 50:
         return True
-    words = line.split()
-    if len(words) <= 4 and all(word.istitle() or word.isupper() for word in words):
-        return True
+
     if line.endswith(':') and not line_lower.startswith('cgpa'):
         return True
-    if re.fullmatch(r"[A-Za-z]{3,10}[0-9]{2,4}", line):
-        return False
-
-    if re.match(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", line, re.IGNORECASE):
-        return False
-
-    if sum(c.isalpha() for c in line) < len(line) * 0.5:
-        return False
-
+    
     return False
 
-def clean_text(text: str) -> str:
-    """Clean and normalize text"""
-    if not text:
-        return ""
-
-    text = re.sub(r'\s+', ' ', text)
-
-    text = re.sub(r'[^\w\s\-.,()/@#&+:;\'\"!?]', ' ', text)
-
-    text = re.sub(r'\s+', ' ', text)
-    
-    return text.strip()
-
 def normalize_heading(text: str) -> str:
-    """Normalize heading text to consistent keys"""
     if not text:
         return "Other"
-        
     original_text = text.strip()
     text = text.strip().lower()
-
     text = re.sub(r'[^\w\s]', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
 
@@ -107,7 +111,6 @@ def normalize_heading(text: str) -> str:
         'academics': 'Education',
         'qualification': 'Education',
         'qualifications': 'Education',
-
         'experience': 'Experience',
         'work experience': 'Experience',
         'professional experience': 'Experience',
@@ -118,33 +121,28 @@ def normalize_heading(text: str) -> str:
         'career history': 'Experience',
         'internship': 'Experience',
         'internships': 'Experience',
-
         'skills': 'Skills',
         'technical skills': 'Skills',
-        'technologies' : 'Skills',
+        'technologies': 'Skills',
         'core competencies': 'Skills',
         'competencies': 'Skills',
         'expertise': 'Skills',
         'technical expertise': 'Skills',
         'key skills': 'Skills',
-
         'projects': 'Projects',
         'project': 'Projects',
         'portfolio': 'Projects',
         'key projects': 'Projects',
-
         'certifications': 'Certifications',
         'certification': 'Certifications',
         'certificates': 'Certifications',
         'licenses': 'Certifications',
         'professional certifications': 'Certifications',
-
         'achievements': 'Achievements',
         'accomplishments': 'Achievements',
         'awards': 'Achievements',
         'honors': 'Achievements',
         'positions of responsibility': 'Achievements',
-
         'summary': 'Summary',
         'professional summary': 'Summary',
         'profile': 'Summary',
@@ -153,12 +151,10 @@ def normalize_heading(text: str) -> str:
         'career objective': 'Summary',
         'about': 'Summary',
         'about me': 'Summary',
-
         'contact': 'Contact',
         'contact information': 'Contact',
         'personal details': 'Contact',
         'personal information': 'Contact',
-
         'languages': 'Languages',
         'publications': 'Publications',
         'research': 'Publications',
@@ -171,15 +167,20 @@ def normalize_heading(text: str) -> str:
         'training': 'Training',
         'courses': 'Training',
     }
-    
+
     for key, value in mapping.items():
         if re.search(r'\b' + re.escape(key) + r'\b', text):
             return value
+    if any(kw in original_text.lower() for kw in ['email', 'phone', 'linkedin', 'github']):
+        return "Contact"
+    
+    words = original_text.split()
+    if len(words) == 2 and all(word.istitle() and word.isalpha() for word in words):
+        return "Contact Information"
 
     return original_text.title()
 
 def get_section_summary(sections: Dict[str, str]) -> Dict[str, int]:
-    """Get a summary of sections and their word counts"""
     summary = {}
     for section, content in sections.items():
         word_count = len(content.split()) if content else 0
@@ -187,35 +188,32 @@ def get_section_summary(sections: Dict[str, str]) -> Dict[str, int]:
     return summary
 
 def parse_resume_sections(pdf_path: str, analyzer) -> Dict[str, str]:
-    """Parse and extract structured resume sections from PDF"""
     if not os.path.exists(pdf_path):
         logger.error(f"PDF file not found: {pdf_path}")
         return {}
-        
+
     sections = defaultdict(list)
     current_section = "Header"
-    
+
     with pdfplumber.open(pdf_path) as pdf:
         logger.info(f"Processing {len(pdf.pages)} pages")
-        
+
         all_lines = []
-        
         for page_num, page in enumerate(pdf.pages, 1):
             text = page.extract_text()
             if not text:
                 continue
-            
+
             lines = text.split('\n')
             for line in lines:
                 line = line.strip()
                 if line:
                     all_lines.append(line)
-        
+
         logger.info(f"Extracted {len(all_lines)} lines total")
-        
+
         for i, line in enumerate(all_lines):
             cleaned_line = fix_spacing(clean_text(line))
-            
             if len(cleaned_line) < 2:
                 continue
 
@@ -234,35 +232,33 @@ def parse_resume_sections(pdf_path: str, analyzer) -> Dict[str, str]:
             if len(content.strip()) > 5:
                 result_sections[section] = content.strip()
 
-    
+    full_text = '\n'.join(all_lines)
+    contact_info = extract_fields_from_resume(full_text)
+
+    header_info = []
+    if contact_info.get("name"):
+        header_info.append(f"Name: {contact_info['name']}")
+    if contact_info.get("email"):
+        header_info.append(f"Email: {contact_info['email']}")
+    if contact_info.get("phone"):
+        header_info.append(f"Phone: {contact_info['phone']}")
+
+    link_pattern = r'(https?://[^\s)]+|www\.[^\s)]+|linkedin\.com/\S+|github\.com/\S+)'
+    top_text = ' '.join(all_lines[:10])
+    links = re.findall(link_pattern, top_text, flags=re.IGNORECASE)
+    if links:
+        for link in links:
+            header_info.append(f"Link: {link}")
+
+    if "Header" in result_sections and header_info:
+        combined_header = result_sections["Header"] + "\n" + '\n'.join(header_info)
+        result_sections["Contact Information"] = combined_header
+        del result_sections["Header"]
+    elif header_info:
+        result_sections["Contact Information"] = '\n'.join(header_info)
+    elif "Header" in result_sections:
+        result_sections["Contact Information"] = result_sections["Header"]
+        del result_sections["Header"]
+
     logger.info(f"Successfully parsed {len(result_sections)} sections")
     return result_sections
-
-def debug_parse_resume(pdf_path: str, analyzer) -> Dict[str, str]:
-    """Print debug info while parsing resume from PDF"""
-    if not os.path.exists(pdf_path):
-        print(f"PDF file not found: {pdf_path}")
-        return {}
-    
-    with pdfplumber.open(pdf_path) as pdf:
-        print(f"Processing {len(pdf.pages)} pages")
-        
-        all_lines = []
-        for page_num, page in enumerate(pdf.pages, 1):
-            text = page.extract_text()
-            if text:
-                lines = text.split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if line:
-                        all_lines.append(line)
-        
-        print(f"\nExtracted {len(all_lines)} lines:")
-        for i, line in enumerate(all_lines[:20]):
-            is_heading = is_section_heading(line, all_lines, i)
-            print(f"{i:2d}: {'[H]' if is_heading else '   '} {line[:80]}")
-        
-        if len(all_lines) > 20:
-            print(f"... and {len(all_lines) - 20} more lines")
-    
-    return parse_resume_sections(pdf_path, analyzer)
