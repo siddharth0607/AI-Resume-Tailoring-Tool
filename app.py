@@ -84,8 +84,12 @@ if section == "LLM-Formatted Resume":
 
 if section == "Resume vs JD Analysis":
     st.title("Resume vs JD Semantic Analysis")
-    if st.session_state["parsed"] and st.session_state["jd_text"]:
-        result = compare_resume_with_jd(st.session_state["parsed"], st.session_state["jd_text"])
+    if st.session_state.get("parsed") and st.session_state.get("jd_text"):
+        resume_data = {
+            "parsed": st.session_state["parsed"],
+            "formatted": st.session_state.get("formatted")
+        }
+        result = compare_resume_with_jd(resume_data, st.session_state["jd_text"])
 
         if "error" in result:
             st.error("Error during JD comparison.")
