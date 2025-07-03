@@ -9,6 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def initialize_analyzer():
+    """Checks and loads the PDF parser"""
     try:
         import pdfplumber
         logger.info("PDF parser initialized successfully")
@@ -18,6 +19,7 @@ def initialize_analyzer():
         raise
 
 def clean_text(text: str) -> str:
+    """Cleans text and removes unwanted characters"""
     if not text:
         return ""
     text = re.sub(r'\s+', ' ', text)
@@ -26,6 +28,7 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 def fix_spacing(text: str) -> str:
+    """Adds missing spaces between words and digits"""
     text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
     text = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', text)
     text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
@@ -36,6 +39,7 @@ def fix_spacing(text: str) -> str:
     return text
 
 def is_section_heading(line: str, all_lines: List[str], index: int) -> bool:
+    """Checks if a line is a section heading"""
     line = line.strip()
     line_lower = line.lower()
     words = line.split()
@@ -95,6 +99,7 @@ def is_section_heading(line: str, all_lines: List[str], index: int) -> bool:
     return False
 
 def normalize_heading(text: str) -> str:
+    """Maps headings to standard section names"""
     if not text:
         return "Other"
     original_text = text.strip()
@@ -183,6 +188,7 @@ def normalize_heading(text: str) -> str:
     return original_text.title()
 
 def get_section_summary(sections: Dict[str, str]) -> Dict[str, int]:
+    """Returns word count per section"""
     summary = {}
     for section, content in sections.items():
         word_count = len(content.split()) if content else 0
@@ -190,6 +196,7 @@ def get_section_summary(sections: Dict[str, str]) -> Dict[str, int]:
     return summary
 
 def parse_resume_sections(pdf_path: str, analyzer) -> Dict[str, str]:
+    """Parses a resume PDF into structured sections"""
     if not os.path.exists(pdf_path):
         logger.error(f"PDF file not found: {pdf_path}")
         return {}

@@ -7,7 +7,7 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def compare_resume_with_jd(parsed_resume: dict, job_description: str) -> dict:
-    """Performs advanced semantic comparison between a parsed resume and a job description"""
+    """Performs semantic comparison between a parsed resume and a job description"""
 
     load_dotenv()
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -198,7 +198,7 @@ def generate_interview_focus_areas(resume_analysis: dict) -> list:
         ]
         
         for gap in critical_gaps[:2]:
-            focus_areas.append(f"Assess adaptability for {gap['skill']} - explore {gap.get('alternatives', ['related experience'])}")
+            focus_areas.append(f"Assess adaptability for {gap['skill']} - explore {', '.join(gap.get('alternatives', ['related experience']))}")
     
     if 'resume_strengths' in resume_analysis:
         unique_strengths = [

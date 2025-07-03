@@ -64,23 +64,24 @@ if section == "Upload Resume & JD":
                 jd_provided = True
 
     if uploaded_resume and jd_provided:
-        with st.spinner("Parsing and formatting your resume..."):
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                tmp_file.write(uploaded_resume.read())
-                resume_path = tmp_file.name
+        if st.button("Start Processing"):
+            with st.spinner("Parsing and formatting your resume..."):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(uploaded_resume.read())
+                    resume_path = tmp_file.name
 
-            analyzer = initialize_analyzer()
-            parsed = parse_resume_sections(resume_path, analyzer)
-            formatted = format_resume_sections_with_llm(parsed)
+                analyzer = initialize_analyzer()
+                parsed = parse_resume_sections(resume_path, analyzer)
+                formatted = format_resume_sections_with_llm(parsed)
 
-            st.session_state["parsed"] = parsed
-            st.session_state["formatted"] = formatted
-            st.session_state["jd_text"] = jd_text_input.strip()
+                st.session_state["parsed"] = parsed
+                st.session_state["formatted"] = formatted
+                st.session_state["jd_text"] = jd_text_input.strip()
 
-            raw_resume_text = "\n".join(parsed.values())
-            st.session_state["extracted_fields"] = extract_fields_from_resume(raw_resume_text)
+                raw_resume_text = "\n".join(parsed.values())
+                st.session_state["extracted_fields"] = extract_fields_from_resume(raw_resume_text)
 
-        st.success("Resume and Job Description processed successfully.")
+            st.success("Resume and Job Description processed successfully.")
 
     elif uploaded_resume and not jd_provided:
         st.info("Please provide the Job Description to continue.")
@@ -249,7 +250,7 @@ if section == "ATS Report with Resume Suggestions":
         st.warning("Please upload both resume and job description first.")
 
 if section == "Generate Cover Letter":
-    st.title("Tailored Cover Letter Generator")
+    st.title("Cover Letter Generator")
 
     if st.session_state.get("formatted") and st.session_state.get("jd_text"):
         name = st.session_state.get("extracted_fields", {}).get("name", "Candidate")

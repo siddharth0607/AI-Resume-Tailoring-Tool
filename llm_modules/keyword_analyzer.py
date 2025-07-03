@@ -3,7 +3,7 @@ from typing import List
 import re
 
 def analyze_ats_keywords(parsed_resume: dict, job_description: str) -> dict:
-    """Leverages JD comparator to create ATS-focused keyword analysis"""
+    """Performs full ATS keyword analysis between resume and job description"""
     jd_analysis = compare_resume_with_jd(parsed_resume, job_description)
     
     if "error" in jd_analysis:
@@ -21,7 +21,7 @@ def analyze_ats_keywords(parsed_resume: dict, job_description: str) -> dict:
     return ats_analysis
 
 def calculate_keyword_coverage(jd_analysis: dict) -> dict:
-    """Calculate keyword coverage percentages"""
+    """Calculates matched and missing keyword coverage metrics"""
     matched_skills = jd_analysis.get("matched_skills", [])
     missing_critical = [
         m for m in jd_analysis.get("missing_critical", [])
@@ -49,7 +49,7 @@ def calculate_keyword_coverage(jd_analysis: dict) -> dict:
     }
 
 def generate_inclusion_suggestion(missing_skill: dict) -> str:
-    """Generate a one-line suggestion on how to include the missing skill"""
+    """Suggests where and how to include a missing skill"""
     skill = missing_skill["skill"]
     category = missing_skill.get("category", "")
     
@@ -82,6 +82,7 @@ NON_MATCHABLE_PATTERNS = [
 ]
 
 def is_non_matchable_phrase(text: str) -> bool:
+    """Checks if a phrase is generic and not useful for ATS matching"""
     text = text.lower()
     for pattern in NON_MATCHABLE_PATTERNS:
         if re.search(pattern, text):
@@ -89,7 +90,7 @@ def is_non_matchable_phrase(text: str) -> bool:
     return False
 
 def extract_missing_keywords(jd_analysis: dict) -> List[dict]:
-    """Extract missing keywords with ATS-specific formatting"""
+    """Extracts and formats missing keywords with ATS impact and suggestions"""
     missing_critical = jd_analysis.get("missing_critical", [])
 
     formatted_missing = []
@@ -107,13 +108,13 @@ def extract_missing_keywords(jd_analysis: dict) -> List[dict]:
             "suggestion": generate_inclusion_suggestion(missing)
         })
 
-    priority_order = {"critical": 1, "important": 2, "nice_to_have": 3}
+    priority_order = {"critical": 1, "important": 2, "nice to have": 3}
     formatted_missing.sort(key=lambda x: priority_order.get(x["importance"], 4))
 
     return formatted_missing
 
 def extract_matched_keywords(jd_analysis: dict) -> List[dict]:
-    """Extract matched keywords with confidence scores"""
+    """Extracts and ranks matched keywords with confidence and match type"""
     matched_skills = jd_analysis.get("matched_skills", [])
     
     formatted_matches = []
@@ -132,7 +133,7 @@ def extract_matched_keywords(jd_analysis: dict) -> List[dict]:
     return formatted_matches
 
 def generate_keyword_suggestions(jd_analysis: dict) -> List[dict]:
-    """Generate specific suggestions for keyword inclusion"""
+    """Generates actionable suggestions for including missing keywords"""
     suggestions = []
     missing_critical = [
         m for m in jd_analysis.get("missing_critical", [])
@@ -151,7 +152,7 @@ def generate_keyword_suggestions(jd_analysis: dict) -> List[dict]:
     return suggestions
 
 def calculate_ats_score(jd_analysis: dict) -> dict:
-    """Calculate ATS-specific scoring with more realistic approach"""
+    """Computes ATS score from keyword matching results"""
 
     matched_skills = jd_analysis.get("matched_skills", [])
     missing_critical = [
@@ -202,7 +203,7 @@ def calculate_ats_score(jd_analysis: dict) -> dict:
     }
 
 def get_priority_actions(jd_analysis: dict) -> List[str]:
-    """Generate priority actions for ATS optimization"""
+    """Generates high-priority optimization tips for improving ATS score"""
     actions = []
     missing_critical = [
         m for m in jd_analysis.get("missing_critical", [])
@@ -227,6 +228,7 @@ def get_priority_actions(jd_analysis: dict) -> List[str]:
     return actions[:5]
 
 def get_ats_impact(importance: str) -> str:
+    """Returns ATS impact level based on keyword importance"""
     impact_map = {
         "critical": "High - May filter out resume",
         "important": "Medium - Reduces ranking",
@@ -235,6 +237,7 @@ def get_ats_impact(importance: str) -> str:
     return impact_map.get(importance, "Unknown")
 
 def get_ats_strength(confidence: float, match_type: str) -> str:
+    """Determines strength of match for a keyword"""
     if match_type == "exact" and confidence > 0.8:
         return "Strong"
     elif match_type == "semantic" and confidence > 0.7:
@@ -243,6 +246,7 @@ def get_ats_strength(confidence: float, match_type: str) -> str:
         return "Weak"
 
 def get_ats_category(score: int) -> str:
+    """Categorizes the ATS score into qualitative buckets"""
     if score >= 80:
         return "Excellent - Likely to pass ATS"
     elif score >= 60:
@@ -253,7 +257,7 @@ def get_ats_category(score: int) -> str:
         return "Poor - Unlikely to pass ATS"
 
 def suggest_placement(missing_skill: dict) -> str:
-    """Suggest where to add missing keywords"""
+    """Suggests the best section to add a missing skill"""
     category = missing_skill.get("category", "")
     
     if category == "technical":
@@ -266,7 +270,7 @@ def suggest_placement(missing_skill: dict) -> str:
         return "Most relevant experience section"
 
 def generate_example_phrases(missing_skill: dict) -> List[str]:
-    """Generate example phrases for keyword inclusion"""
+    """Generates example resume phrases using a missing skill"""
     skill = missing_skill["skill"]
     category = missing_skill.get("category", "")
     

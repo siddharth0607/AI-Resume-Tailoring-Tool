@@ -6,7 +6,7 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def format_resume_sections_with_llm(sections: dict) -> dict:
-    """Formats unstructured resume sections using GPT-4o while preserving order, with Contact Information first."""
+    """Formats unstructured resume sections using GPT-4o while preserving order"""
     formatted_sections = {}
     ordered_keys = list(sections.keys())
 

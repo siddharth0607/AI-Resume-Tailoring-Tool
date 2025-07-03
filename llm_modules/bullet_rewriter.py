@@ -77,7 +77,7 @@ def extract_resume_content(text: str) -> list:
     return chunks[:8]
 
 def optimize_resume_bullets(parsed_resume: dict, job_description: str) -> dict:
-    """Uses GPT-4o to rewrite and optimize resume bullet points based on a given job description"""
+    """Rewrite and optimize resume bullet points based on a given job description"""
     bullet_sections = ["Experience", "Projects", "Achievements", "Internships", "Volunteer", "Work Experience", "Professional Experience", "Technical Projects", "Summary", "Objective"]
 
     exclude_sections = ["Education", "Contact", "Personal Information", "References", "Languages", "Certifications", "Awards", "Honors", "Publications", "Patents", "Licenses"]

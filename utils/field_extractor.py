@@ -2,7 +2,7 @@ import re
 from typing import Dict, Optional
 
 def extract_fields_from_resume(text: str) -> Dict[str, Optional[str]]:
-    """Extracts name, email, and phone number from resume text using regex and heuristics"""
+    """Extracts name, email and phone number from resume text using regex and heuristics"""
     if not text or not text.strip():
         return {"name": "Candidate", "email": None, "phone": None}
 
