@@ -5,25 +5,24 @@ def extract_fields_from_resume(text: str) -> Dict[str, Optional[str]]:
     """Extracts name, email, and phone number from resume text using regex and heuristics"""
     if not text or not text.strip():
         return {"name": "Candidate", "email": None, "phone": None}
-    
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
     email_match = re.search(email_pattern, text)
     email = email_match.group(0) if email_match else None
-    
-    phone_patterns = [
-        r'\+?1?[-.\s]?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}',
-        r'\+?[0-9]{1,4}[-.\s]?[0-9]{3,4}[-.\s]?[0-9]{3,4}[-.\s]?[0-9]{3,4}',
-        r'\([0-9]{3}\)[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}',
-    ]
-    
-    phone = None
-    for pattern in phone_patterns:
-        phone_match = re.search(pattern, text)
-        if phone_match:
-            phone = re.sub(r'[^\d+]', '', phone_match.group(0))
-            if len(phone) >= 10:
-                phone = phone_match.group(0).strip()
-                break
+
+    def extract_phone(text: str) -> Optional[str]:
+        patterns = [
+            r'(\+91[\s-]*[6-9]\d{2}[\s-]*\d{3}[\s-]*\d{4})',
+            r'([6-9]\d{9})',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                digits = re.sub(r'[^\d]', '', match.group())
+                return '+91' + digits[-10:] if len(digits) >= 10 else None
+        return None
+
+    phone = extract_phone(text)
 
     lines = [line.strip() for line in text.strip().split('\n') if line.strip()]
     name = None
@@ -38,13 +37,13 @@ def extract_fields_from_resume(text: str) -> Dict[str, Optional[str]]:
             len(line) < 2,
         ]):
             continue
-            
+
         if re.match(r'^[A-Za-z\s\.-]{2,30}$', line):
             words = line.split()
-            if 1 <= len(words) <= 3 and all(word[0].isupper() for word in words):
+            if 1 <= len(words) <= 3 and all(w[0].isupper() for w in words if w.isalpha()):
                 name = line
                 break
-    
+
     return {
         "name": name or "Candidate",
         "email": email,
