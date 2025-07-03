@@ -8,6 +8,7 @@ from resume_parser.parser import parse_resume_sections, initialize_analyzer
 from llm_modules.formatter import format_resume_sections_with_llm
 from llm_modules.jd_comparator import compare_resume_with_jd, generate_interview_focus_areas
 from llm_modules.bullet_rewriter import optimize_resume_bullets, get_top_optimized_bullets
+from llm_modules.keyword_analyzer import analyze_ats_keywords
 from utils.field_extractor import extract_fields_from_resume
 from llm_modules.cover_letter import generate_cover_letter
 
@@ -20,7 +21,7 @@ section = st.sidebar.radio(
         "Upload Resume & JD",
         "Resume Contents",
         "Resume vs JD Analysis",
-        "Bullet Point Optimization",
+        "ATS Report with Resume Suggestions",
         "Generate Cover Letter",
     ]
 )
@@ -31,7 +32,7 @@ if "parsed" not in st.session_state:
     st.session_state["jd_text"] = None
 
 if section == "Upload Resume & JD":
-    st.title("Upload Resume and Provide Job Description")
+    st.title("Upload Resume and Job Description")
 
     uploaded_resume = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
 
@@ -177,63 +178,78 @@ if section == "Resume vs JD Analysis":
     else:
         st.warning("Please upload your resume and JD.")
 
-if section == "Bullet Point Optimization":
-    st.title("Bullet Point Optimization")
-
+if section == "ATS Report with Resume Suggestions":
+    st.title("ATS Report with Resume Suggestions")
     if "bullet_optimization_triggered" not in st.session_state:
         st.session_state["bullet_optimization_triggered"] = False
+    if "bullet_optimization_result" not in st.session_state:
         st.session_state["bullet_optimization_result"] = None
+    if "ats_analysis_result" not in st.session_state:
+        st.session_state["ats_analysis_result"] = None
 
-    if st.session_state["formatted"] and st.session_state["jd_text"]:
+    if st.session_state.get("formatted") and st.session_state.get("jd_text"):
         if not st.session_state["bullet_optimization_triggered"]:
             if st.button("Run Optimization"):
                 st.session_state["bullet_optimization_triggered"] = True
                 st.rerun()
         else:
-            with st.spinner("Optimizing bullet points..."):
+            with st.spinner("Analyzing resume and optimizing bullets..."):
                 if not st.session_state["bullet_optimization_result"]:
-                    optimization_results = optimize_resume_bullets(
+                    st.session_state["bullet_optimization_result"] = optimize_resume_bullets(
                         st.session_state["formatted"], st.session_state["jd_text"]
                     )
-                    st.session_state["bullet_optimization_result"] = optimization_results
+                if not st.session_state["ats_analysis_result"]:
+                    st.session_state["ats_analysis_result"] = analyze_ats_keywords(
+                        st.session_state["formatted"], st.session_state["jd_text"]
+                    )
 
             optimization_results = st.session_state["bullet_optimization_result"]
+            ats_data = st.session_state["ats_analysis_result"]
 
             if "error" in optimization_results:
                 st.error("Bullet optimization failed.")
                 st.code(optimization_results["error"])
+            elif "error" in ats_data:
+                st.error("ATS Analysis failed.")
+                st.code(ats_data["error"])
             else:
-                with st.expander("Optimized Bullets by Section"):
+                st.subheader("ATS Keyword Analysis")
+                st.metric("ATS Score", f"{ats_data['ats_score']['ats_score']}%")
+                st.caption(ats_data['ats_score']['ats_category'])
+
+                st.markdown("**Top Missing Keywords:**")
+                for missing in ats_data["missing_keywords"][:5]:
+                    st.markdown(f"- **{missing['keyword']}** ({missing['importance']})")
+
+                st.markdown("**Priority Suggestions:**")
+                for action in ats_data["priority_actions"]:
+                    st.markdown(f"- {action}")
+
+                st.subheader("Resume Content Suggestions")
+
+                with st.expander("Suggestions by Section"):
                     for section, bullets in optimization_results["organized_by_section"].items():
-                        st.markdown(f"**{section.title()}**")
+                        st.markdown(f"### {section.title()}")
                         for b in bullets:
                             st.markdown(
                                 f"- **Original:** {b['original']}  \n"
                                 f"  **Optimized:** {b['optimized']}  \n"
-                                f"  Keywords: `{', '.join(b.get('jd_keywords_added', []))}`  \n"
-                                f"  Score: `{b.get('impact_score', '-')}`  \n"
-                                f"  Improvements: `{', '.join(b.get('improvements', []))}`"
+                                f"  **Keywords:** `{', '.join(b.get('jd_keywords_added', []))}`  \n"
+                                f"  **Score:** `{b.get('impact_score', '-')}`  \n"
+                                f"  **Improvements:** `{', '.join(b.get('improvements', []))}`"
                             )
 
-                with st.expander("Top 5 Most Improved Bullets"):
-                    top_bullets = get_top_optimized_bullets(optimization_results)
-                    for i, b in enumerate(top_bullets, 1):
-                        st.markdown(
-                            f"**{i}.** {b['optimized_text']}  \n"
-                            f"Score: `{b['impact_score']}` | Keywords: `{', '.join(b['keywords_added'])}`"
-                        )
-
-                with st.expander("Optimization Summary"):
+                with st.expander("Resume Enhancement Summary"):
                     summary = optimization_results["optimization_summary"]
-                    st.markdown(f"- **Total Bullets:** {summary.get('total_bullets_processed', '-')}")
-                    st.markdown(f"- **Average Score:** {summary.get('avg_improvement_score', '-')}")
+                    st.markdown(f"- **Total Suggestions Made:** {summary.get('total_bullets_processed', '-')}")
+                    st.markdown(f"- **Average Impact Score:** {summary.get('avg_improvement_score', '-')}")
                     st.markdown(f"- **JD Alignment (%):** {summary.get('jd_alignment_percentage', '-')}")
-                    st.markdown(f"- **Key Themes:** {', '.join(summary.get('key_themes_emphasized', []))}")
+                    st.markdown(f"- **Key Themes Emphasized:** {', '.join(summary.get('key_themes_emphasized', []))}")
     else:
-        st.warning("Please upload both resume and job description.")
+        st.warning("Please upload both resume and job description first.")
 
 if section == "Generate Cover Letter":
-    st.title("AI-Generated Cover Letter")
+    st.title("Tailored Cover Letter Generator")
 
     if st.session_state.get("formatted") and st.session_state.get("jd_text"):
         name = st.session_state.get("extracted_fields", {}).get("name", "Candidate")
@@ -241,8 +257,17 @@ if section == "Generate Cover Letter":
         company_name = st.text_input("Company Name", placeholder="e.g. Google")
         role_title = st.text_input("Role Title", placeholder="e.g. Software Engineer")
 
-        tone_options = ["professional", "friendly", "confident", "enthusiastic", "conversational"]
-        tone = st.selectbox("Tone of the Letter", tone_options, index=0, help="Select the desired tone for your cover letter")
+        tone_options_display = ["Professional", "Friendly", "Confident", "Enthusiastic", "Conversational"]
+        tone_map = {display: display.lower() for display in tone_options_display}
+
+        selected_display = st.selectbox(
+            "Tone of the Letter", 
+            tone_options_display, 
+            index=0, 
+            help="Select the desired tone for your cover letter"
+        )
+
+        selected_tone = tone_map[selected_display]
 
         if st.button("Generate Cover Letter"):
             with st.spinner("Generating Cover Letter..."):
@@ -252,7 +277,7 @@ if section == "Generate Cover Letter":
                     candidate_name=name,
                     company_name=company_name,
                     role_title=role_title,
-                    tone=tone
+                    tone=selected_tone
                 )
                 st.session_state["cover_letter"] = cover_letter
 
