@@ -284,7 +284,7 @@ if section == "Generate Cover Letter":
 
         if st.session_state.get("cover_letter"):
             st.subheader("Cover Letter Preview")
-            st.text_area("", value=st.session_state["cover_letter"], height=400, key="cover_preview")
+            st.markdown(st.session_state["cover_letter"])
 
             export_format = st.radio(
                 "Choose export format",
