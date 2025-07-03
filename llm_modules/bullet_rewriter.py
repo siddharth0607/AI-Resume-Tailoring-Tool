@@ -19,7 +19,7 @@ def simple_fallback_sent_split(text: str) -> list:
 
 def optimize_resume_bullets(parsed_resume: dict, job_description: str) -> dict:
     """Uses GPT-4o to rewrite and optimize resume bullet points based on a given job description"""
-    bullet_sections = ["experience", "projects", "achievements", "work_experience"]
+    bullet_sections = ["Experience", "Projects", "Achievements", "Internships", "Volunteer"]
     all_bullets = []
 
     bullet_split_pattern = re.compile(r"[\n•\-‣●▪➤▶\*]+")
