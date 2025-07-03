@@ -143,7 +143,6 @@ def compare_resume_with_jd(parsed_resume: dict, job_description: str) -> dict:
             "error_message": str(e)
         }
 
-
 def get_domain_specific_insights(resume_analysis: dict) -> dict:
     """Extract domain-specific insights and recommendations from the analysis"""
     if 'error' in resume_analysis:
@@ -175,7 +174,6 @@ def get_domain_specific_insights(resume_analysis: dict) -> dict:
         }
     
     return insights
-
 
 def generate_interview_focus_areas(resume_analysis: dict) -> list:
     """Generate focused interview topics based on the resume analysis"""

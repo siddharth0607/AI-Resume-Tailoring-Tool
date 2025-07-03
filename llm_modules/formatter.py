@@ -10,7 +10,6 @@ def format_resume_sections_with_llm(sections: dict) -> dict:
     formatted_sections = {}
     ordered_keys = list(sections.keys())
 
-    # Move 'Contact Information' to the top if it exists
     if "Contact Information" in ordered_keys:
         ordered_keys.remove("Contact Information")
         ordered_keys.insert(0, "Contact Information")

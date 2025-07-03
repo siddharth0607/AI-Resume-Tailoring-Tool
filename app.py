@@ -1,5 +1,9 @@
 import streamlit as st
 import tempfile
+import os
+from io import BytesIO
+from docx import Document
+from fpdf import FPDF
 from resume_parser.parser import parse_resume_sections, initialize_analyzer
 from llm_modules.formatter import format_resume_sections_with_llm
 from llm_modules.jd_comparator import compare_resume_with_jd, generate_interview_focus_areas
@@ -14,8 +18,7 @@ section = st.sidebar.radio(
     "Go to",
     [
         "Upload Resume & JD",
-        "View Resume Sections",
-        "LLM-Formatted Resume",
+        "Resume Contents",
         "Resume vs JD Analysis",
         "Bullet Point Optimization",
         "Generate Cover Letter",
@@ -28,150 +31,206 @@ if "parsed" not in st.session_state:
     st.session_state["jd_text"] = None
 
 if section == "Upload Resume & JD":
-    st.title("Upload Your Resume and Job Description")
+    st.title("Upload Resume and Provide Job Description")
 
     uploaded_resume = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
-    uploaded_jd = st.file_uploader("Upload Job Description (TXT)", type=["txt"])
 
-    if uploaded_resume:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(uploaded_resume.read())
-            resume_path = tmp_file.name
+    jd_input_method = st.radio(
+        "How would you like to provide the Job Description?",
+        ["Paste Job Description", "Upload JD File (.txt)"],
+        index=0
+    )
 
-        analyzer = initialize_analyzer()
-        parsed = parse_resume_sections(resume_path, analyzer)
-        formatted = format_resume_sections_with_llm(parsed)
+    jd_text_input = None
+    jd_provided = False
 
-        st.session_state["parsed"] = parsed
-        st.session_state["formatted"] = formatted
-        st.success("Resume parsed and formatted successfully.")
+    if jd_input_method == "Paste Job Description":
+        jd_text_input = st.text_area(
+            "Paste the Job Description below",
+            height=250,
+            placeholder="Paste the job description you're applying to..."
+        )
+        jd_provided = bool(jd_text_input.strip())
 
-        raw_resume_text = "\n".join(st.session_state["parsed"].values())
-        extracted_fields = extract_fields_from_resume(raw_resume_text)
+    elif jd_input_method == "Upload JD File (.txt)":
+        uploaded_jd = st.file_uploader("Upload Job Description File (.txt)", type=["txt"])
+        if uploaded_jd:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp_jd_file:
+                tmp_jd_file.write(uploaded_jd.read())
+                jd_path = tmp_jd_file.name
+            with open(jd_path, "r", encoding="utf-8") as f:
+                jd_text_input = f.read()
+                jd_provided = True
 
-        st.session_state["extracted_fields"] = extracted_fields
+    if uploaded_resume and jd_provided:
+        with st.spinner("Parsing and formatting your resume..."):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_file.write(uploaded_resume.read())
+                resume_path = tmp_file.name
 
-    if uploaded_jd:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp_jd_file:
-            tmp_jd_file.write(uploaded_jd.read())
-            jd_path = tmp_jd_file.name
+            analyzer = initialize_analyzer()
+            parsed = parse_resume_sections(resume_path, analyzer)
+            formatted = format_resume_sections_with_llm(parsed)
 
-        with open(jd_path, "r", encoding="utf-8") as f:
-            st.session_state["jd_text"] = f.read()
+            st.session_state["parsed"] = parsed
+            st.session_state["formatted"] = formatted
+            st.session_state["jd_text"] = jd_text_input.strip()
 
-if section == "View Resume Sections":
-    st.title("Parsed Resume Sections")
-    if st.session_state["parsed"]:
-        for section, content in st.session_state["parsed"].items():
-            st.markdown(f"**{section}**")
-            st.text_area(label="", value=content, height=150, key=f"parsed_{section}")
-    else:
-        st.warning("Please upload your resume first.")
+            raw_resume_text = "\n".join(parsed.values())
+            st.session_state["extracted_fields"] = extract_fields_from_resume(raw_resume_text)
 
-if section == "LLM-Formatted Resume":
-    st.title("LLM-Enhanced Resume Formatting")
+        st.success("Resume and Job Description processed successfully.")
+
+    elif uploaded_resume and not jd_provided:
+        st.info("Please provide the Job Description to continue.")
+
+if section == "Resume Contents":
+    st.title("Resume Contents")
 
     formatted_sections = st.session_state.get("formatted")
     if formatted_sections:
-        for _, formatted_text in formatted_sections.items():
+        for formatted_text in formatted_sections.values():
             st.markdown(formatted_text, unsafe_allow_html=True)
-
     else:
-        st.warning("Resume not formatted yet.")
+        st.warning("Please upload and process your resume first.")
 
 if section == "Resume vs JD Analysis":
-    st.title("Resume vs JD Semantic Analysis")
-    if st.session_state["parsed"] and st.session_state["jd_text"]:
-        result = compare_resume_with_jd(st.session_state["parsed"], st.session_state["jd_text"])
+    st.title("Resume vs Job Description Match Report")
 
-        if "error" in result:
-            st.error("Error during JD comparison.")
-            st.code(result.get("raw_response", "No response"), language="json")
+    if st.session_state.get("parsed") and st.session_state.get("jd_text"):
+        if "jd_comparison_triggered" not in st.session_state:
+            st.session_state["jd_comparison_triggered"] = False
+
+        if not st.session_state["jd_comparison_triggered"]:
+            if st.button("Run Resume vs JD Analysis"):
+                st.session_state["jd_comparison_triggered"] = True
+                st.rerun()
         else:
-            st.success(f"Fit Level: {result['overall_assessment']['fit_level']} ({result['overall_assessment']['match_percentage']}%)")
+            spinner_container = st.empty()
+            with spinner_container:
+                with st.spinner("Analyzing Resume vs Job Description..."):
+                    result = compare_resume_with_jd(st.session_state["parsed"], st.session_state["jd_text"])
 
-            with st.expander("Matched Skills"):
-                for match in result["matched_skills"]:
-                    st.markdown(
-                        f"- **{match['skill']}** (JD: {match['jd_term']} / Resume: {match['resume_term']})  \n"
-                        f"  Match Type: `{match['match_type']}` | Confidence: `{match['confidence']}`  \n"
-                        f"  Reason: {match['reasoning']}"
-                    )
+            spinner_container.empty()
+            st.session_state["jd_comparison_triggered"] = False
 
-            with st.expander("Missing Critical Skills"):
-                for missing in result["missing_critical"]:
-                    st.markdown(
-                        f"- **{missing['skill']}** ({missing['importance']}, {missing['category']})  \n"
-                        f"  Alternatives: {', '.join(missing.get('alternatives', []))}"
-                    )
-
-            with st.expander("Additional Resume Strengths"):
-                for strength in result["resume_strengths"]:
-                    st.markdown(
-                        f"- **{strength['skill']}** ({strength['relevance']})  \n"
-                        f"  Value Add: {strength['value_add']}"
-                    )
-
-            with st.expander("Overall Fit Summary"):
+            if "error" in result:
+                st.error("Error during JD comparison.")
+                st.code(result.get("raw_response", "No response"), language="json")
+            else:
                 oa = result["overall_assessment"]
-                st.markdown(f"- **Match Percentage:** {oa['match_percentage']}%")
-                st.markdown(f"- **Fit Level:** {oa['fit_level']}")
-                st.markdown(f"- **Key Strengths:** {', '.join(oa['key_strengths'])}")
-                st.markdown(f"- **Main Gaps:** {', '.join(oa['main_gaps'])}")
-                st.markdown(f"- **Recommendation:** {oa['recommendation']}")
-                st.markdown(f"- **Reasoning:** {oa['reasoning']}")
+                st.subheader("Executive Summary")
+                st.markdown(f"""
+                **Match Score:** {oa['match_percentage']}%  
+                **Fit Level:** {oa['fit_level'].capitalize()}  
+                **Recommendation:** {oa['recommendation'].capitalize()}  
+                **Summary:** {oa['reasoning']}
+                """)
 
-            with st.expander("Domain Insights"):
+                st.divider()
+                st.subheader("Key Strengths")
+                for strength in oa["key_strengths"]:
+                    st.markdown(f"- {strength}")
+
+                st.subheader("Critical Skill Gaps")
+                if result["missing_critical"]:
+                    for gap in result["missing_critical"]:
+                        st.markdown(f"""
+                        - **{gap['skill']}** ({gap['importance']}, {gap['category']})  
+                          Alternatives: `{', '.join(gap.get('alternatives', []))}`  
+                        """)
+                else:
+                    st.markdown("No major gaps identified.")
+
+                st.subheader("Matched Skills")
+                for match in result["matched_skills"]:
+                    st.markdown(f"""
+                    - **{match['skill']}**  
+                      JD: `{match['jd_term']}` | Resume: `{match['resume_term']}`  
+                      Match Type: `{match['match_type']}` | Confidence: `{match['confidence']}`  
+                      Reason: {match['reasoning']}
+                    """)
+
+                st.subheader("Additional Resume Strengths")
+                if result["resume_strengths"]:
+                    for s in result["resume_strengths"]:
+                        st.markdown(f"- **{s['skill']}** ({s['relevance']}) - {s['value_add']}")
+                else:
+                    st.markdown("None found.")
+
+                st.subheader("Domain Alignment")
                 domain = result["domain_insights"]
-                st.markdown(f"- **Resume Domain:** {domain['resume_domain']}")
-                st.markdown(f"- **JD Domain:** {domain['jd_domain']}")
-                st.markdown(f"- **Cross-domain Applicability:** {domain['cross_domain_applicability']}")
-                st.markdown(f"- **Domain Notes:** {domain['domain_specific_notes']}")
+                st.markdown(f"""
+                - Resume Domain: `{domain['resume_domain']}`  
+                - JD Domain: `{domain['jd_domain']}`  
+                - Cross-Domain Applicability: `{domain['cross_domain_applicability']}`  
+                - Notes: {domain['domain_specific_notes']}
+                """)
 
-            st.subheader("Suggested Interview Focus Areas")
-            focus_areas = generate_interview_focus_areas(result)
-            for item in focus_areas:
-                st.markdown(f"- {item}")
+                st.subheader("Suggested Interview Focus Areas")
+                focus_areas = generate_interview_focus_areas(result)
+                if focus_areas:
+                    for item in focus_areas:
+                        st.markdown(f"- {item}")
+                else:
+                    st.markdown("None generated.")
     else:
-        st.warning("Upload both Resume and Job Description first.")
+        st.warning("Please upload your resume and JD.")
 
 if section == "Bullet Point Optimization":
-    st.title("Optimized Bullet Points")
-    if st.session_state["formatted"] and st.session_state["jd_text"]:
-        optimization_results = optimize_resume_bullets(st.session_state["formatted"], st.session_state["jd_text"])
+    st.title("Bullet Point Optimization")
 
-        if "error" in optimization_results:
-            st.error("Bullet optimization failed.")
-            st.code(optimization_results["error"])
+    if "bullet_optimization_triggered" not in st.session_state:
+        st.session_state["bullet_optimization_triggered"] = False
+        st.session_state["bullet_optimization_result"] = None
+
+    if st.session_state["formatted"] and st.session_state["jd_text"]:
+        if not st.session_state["bullet_optimization_triggered"]:
+            if st.button("Run Optimization"):
+                st.session_state["bullet_optimization_triggered"] = True
+                st.rerun()
         else:
-            with st.expander("Optimized Bullets by Section"):
-                for section, bullets in optimization_results["organized_by_section"].items():
-                    st.markdown(f"**{section.title()}**")
-                    for b in bullets:
+            with st.spinner("Optimizing bullet points..."):
+                if not st.session_state["bullet_optimization_result"]:
+                    optimization_results = optimize_resume_bullets(
+                        st.session_state["formatted"], st.session_state["jd_text"]
+                    )
+                    st.session_state["bullet_optimization_result"] = optimization_results
+
+            optimization_results = st.session_state["bullet_optimization_result"]
+
+            if "error" in optimization_results:
+                st.error("Bullet optimization failed.")
+                st.code(optimization_results["error"])
+            else:
+                with st.expander("Optimized Bullets by Section"):
+                    for section, bullets in optimization_results["organized_by_section"].items():
+                        st.markdown(f"**{section.title()}**")
+                        for b in bullets:
+                            st.markdown(
+                                f"- **Original:** {b['original']}  \n"
+                                f"  **Optimized:** {b['optimized']}  \n"
+                                f"  Keywords: `{', '.join(b.get('jd_keywords_added', []))}`  \n"
+                                f"  Score: `{b.get('impact_score', '-')}`  \n"
+                                f"  Improvements: `{', '.join(b.get('improvements', []))}`"
+                            )
+
+                with st.expander("Top 5 Most Improved Bullets"):
+                    top_bullets = get_top_optimized_bullets(optimization_results)
+                    for i, b in enumerate(top_bullets, 1):
                         st.markdown(
-                            f"- **Original:** {b['original']}  \n"
-                            f"  **Optimized:** {b['optimized']}  \n"
-                            f"  Keywords: `{', '.join(b.get('jd_keywords_added', []))}`  \n"
-                            f"  Score: `{b.get('impact_score', '-')}`  \n"
-                            f"  Improvements: `{', '.join(b.get('improvements', []))}`"
+                            f"**{i}.** {b['optimized_text']}  \n"
+                            f"Score: `{b['impact_score']}` | Keywords: `{', '.join(b['keywords_added'])}`"
                         )
 
-            with st.expander("Top 5 Most Improved Bullets"):
-                top_bullets = get_top_optimized_bullets(optimization_results)
-                for i, b in enumerate(top_bullets, 1):
-                    st.markdown(
-                        f"**{i}.** {b['optimized_text']}  \n"
-                        f"Score: `{b['impact_score']}` | Keywords: `{', '.join(b['keywords_added'])}`"
-                    )
-
-            with st.expander("Optimization Summary"):
-                summary = optimization_results["optimization_summary"]
-                st.markdown(f"- **Total Bullets:** {summary.get('total_bullets_processed', '-')}")
-                st.markdown(f"- **Average Score:** {summary.get('avg_improvement_score', '-')}")
-                st.markdown(f"- **JD Alignment (%):** {summary.get('jd_alignment_percentage', '-')}")
-                st.markdown(f"- **Key Themes:** {', '.join(summary.get('key_themes_emphasized', []))}")
+                with st.expander("Optimization Summary"):
+                    summary = optimization_results["optimization_summary"]
+                    st.markdown(f"- **Total Bullets:** {summary.get('total_bullets_processed', '-')}")
+                    st.markdown(f"- **Average Score:** {summary.get('avg_improvement_score', '-')}")
+                    st.markdown(f"- **JD Alignment (%):** {summary.get('jd_alignment_percentage', '-')}")
+                    st.markdown(f"- **Key Themes:** {', '.join(summary.get('key_themes_emphasized', []))}")
     else:
-        st.warning("Please upload both Resume and JD.")
+        st.warning("Please upload both resume and job description.")
 
 if section == "Generate Cover Letter":
     st.title("AI-Generated Cover Letter")
@@ -179,14 +238,14 @@ if section == "Generate Cover Letter":
     if st.session_state.get("formatted") and st.session_state.get("jd_text"):
         name = st.session_state.get("extracted_fields", {}).get("name", "Candidate")
 
-        company_name = st.text_input("Company Name", value="the company")
-        role_title = st.text_input("Role Title", value="this position")
+        company_name = st.text_input("Company Name", placeholder="e.g. Google")
+        role_title = st.text_input("Role Title", placeholder="e.g. Software Engineer")
 
         tone_options = ["professional", "friendly", "confident", "enthusiastic", "conversational"]
-        tone = st.selectbox("Tone of the Letter", tone_options, index=0)
+        tone = st.selectbox("Tone of the Letter", tone_options, index=0, help="Select the desired tone for your cover letter")
 
         if st.button("Generate Cover Letter"):
-            with st.spinner("Generating..."):
+            with st.spinner("Generating Cover Letter..."):
                 cover_letter = generate_cover_letter(
                     formatted_resume=st.session_state["formatted"],
                     job_description=st.session_state["jd_text"],
@@ -195,7 +254,73 @@ if section == "Generate Cover Letter":
                     role_title=role_title,
                     tone=tone
                 )
-                st.text_area("Cover Letter", value=cover_letter, height=400)
-                st.download_button("Download Cover Letter", cover_letter, file_name="cover_letter.txt")
+                st.session_state["cover_letter"] = cover_letter
+
+        if st.session_state.get("cover_letter"):
+            st.subheader("Cover Letter Preview")
+            st.text_area("", value=st.session_state["cover_letter"], height=400, key="cover_preview")
+
+            export_format = st.radio(
+                "Choose export format",
+                ["TXT", "PDF", "DOCX"],
+                horizontal=True,
+                index=0
+            )
+
+            if export_format == "TXT":
+                st.download_button(
+                    label="Download as TXT",
+                    data=st.session_state["cover_letter"],
+                    file_name="cover_letter.txt",
+                    mime="text/plain"
+                )
+
+            elif export_format == "PDF":
+                from fpdf import FPDF
+                import unicodedata
+
+                def clean_text(text):
+                    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_auto_page_break(auto=True, margin=12)
+                pdf.set_font("Arial", size=11)
+
+                cleaned_text = clean_text(st.session_state["cover_letter"])
+                line_height = 6
+                for line in cleaned_text.split("\n"):
+                    if line.strip():
+                        pdf.multi_cell(0, line_height, line)
+                    else:
+                        pdf.ln(line_height)
+
+                pdf_output = pdf.output(dest="S").encode("latin-1")
+
+                st.download_button(
+                    label="Download as PDF",
+                    data=pdf_output,
+                    file_name="cover_letter.pdf",
+                    mime="application/pdf"
+                )
+
+            elif export_format == "DOCX":
+                from docx import Document
+                import io
+
+                doc = Document()
+                for line in st.session_state["cover_letter"].split("\n"):
+                    doc.add_paragraph(line)
+
+                doc_io = io.BytesIO()
+                doc.save(doc_io)
+                doc_io.seek(0)
+
+                st.download_button(
+                    label="Download as DOCX",
+                    data=doc_io,
+                    file_name="cover_letter.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
     else:
         st.warning("Please upload both resume and job description first.")

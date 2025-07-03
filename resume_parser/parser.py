@@ -4,9 +4,7 @@ import re
 import logging
 from typing import Dict, List
 import os
-
 from utils.field_extractor import extract_fields_from_resume
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
