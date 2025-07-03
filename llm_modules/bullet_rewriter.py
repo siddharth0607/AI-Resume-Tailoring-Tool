@@ -17,39 +17,132 @@ def simple_fallback_sent_split(text: str) -> list:
     chunks = [' '.join(words[i:i+15]) for i in range(0, len(words), 15)]
     return [chunk.strip() for chunk in chunks if len(chunk.strip()) > 10]
 
+def extract_resume_content(text: str) -> list:
+    """
+    Robust content extraction with multiple fallback strategies
+    Guarantees returning meaningful content for optimization
+    """
+    if not text or not text.strip():
+        return []
+
+    text = text.strip()
+
+    bullet_pattern = re.compile(r'[\n•\-‣●▪➤▶\*\+]+')
+    bullet_candidates = [
+        fix_spacing(b.strip()) for b in bullet_pattern.split(text)
+        if len(b.strip()) > 15 and not b.strip().startswith('http')
+    ]
+    
+    if len(bullet_candidates) >= 3:
+        return bullet_candidates[:15]
+
+    pattern_splits = re.split(r'(?:\n|^)(?=(?:Led|Developed|Managed|Created|Built|Designed|Implemented|Coordinated|Achieved|Improved|Reduced|Increased|Collaborated|Responsible for|Worked on))', text, flags=re.IGNORECASE)
+    
+    pattern_candidates = [
+        fix_spacing(s.strip()) for s in pattern_splits
+        if len(s.strip()) > 20 and any(word in s.lower() for word in ['led', 'developed', 'managed', 'created', 'built', 'designed', 'implemented'])
+    ]
+    
+    if len(pattern_candidates) >= 3:
+        return pattern_candidates[:12]
+
+    sentences = re.split(r'[.!?]+', text)
+    sentence_candidates = []
+    
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if (len(sentence) > 25 and 
+            any(word in sentence.lower() for word in ['experience', 'project', 'skill', 'work', 'develop', 'manage', 'create', 'build', 'lead', 'design', 'implement', 'achieve', 'improve', 'responsible', 'collaborate']) and
+            not sentence.lower().startswith(('education', 'degree', 'university', 'college', 'school'))):
+            sentence_candidates.append(fix_spacing(sentence))
+    
+    if len(sentence_candidates) >= 3:
+        return sentence_candidates[:10]
+
+    words = text.split()
+    if len(words) < 10:
+        return [text] if len(text) > 20 else []
+
+    chunk_size = max(15, len(words) // 6)
+    chunks = []
+    
+    for i in range(0, len(words), chunk_size):
+        chunk = ' '.join(words[i:i+chunk_size])
+        if len(chunk) > 30:
+            chunks.append(fix_spacing(chunk))
+
+    if not chunks and len(text) > 20:
+        chunks = [text]
+    
+    return chunks[:8]
+
 def optimize_resume_bullets(parsed_resume: dict, job_description: str) -> dict:
     """Uses GPT-4o to rewrite and optimize resume bullet points based on a given job description"""
-    bullet_sections = ["Experience", "Projects", "Achievements", "Internships", "Volunteer"]
+    bullet_sections = ["Experience", "Projects", "Achievements", "Internships", "Volunteer", "Work Experience", "Professional Experience", "Technical Projects", "Summary", "Objective"]
+
+    exclude_sections = ["Education", "Contact", "Personal Information", "References", "Languages", "Certifications", "Awards", "Honors", "Publications", "Patents", "Licenses"]
+    
     all_bullets = []
 
-    bullet_split_pattern = re.compile(r"[\n•\-‣●▪➤▶\*]+")
-
     for section in bullet_sections:
-        content = parsed_resume.get(section.title(), "")
+        content = None
+        for key in parsed_resume.keys():
+            if key.lower().replace(' ', '').replace('_', '') == section.lower().replace(' ', '').replace('_', ''):
+                content = parsed_resume[key]
+                break
+        
+        if content is None:
+            continue
+            
         bullets = []
 
         if isinstance(content, list):
             for item in content:
                 if isinstance(item, str):
-                    bullets.extend([
-                        b.strip() for b in bullet_split_pattern.split(item)
-                        if len(b.strip()) > 10
-                    ])
+                    extracted = extract_resume_content(item)
+                    bullets.extend(extracted)
         elif isinstance(content, str) and content.strip():
-            raw_bullets = [
-                fix_spacing(b.strip()) for b in bullet_split_pattern.split(content)
-                if len(b.strip()) > 10
-            ]
-
-            if len(raw_bullets) < 2:
-                raw_bullets = [fix_spacing(b) for b in simple_fallback_sent_split(content)]
-
-            bullets = [b for b in raw_bullets if len(b.strip()) > 10]
+            extracted = extract_resume_content(content)
+            bullets.extend(extracted)
 
         all_bullets.extend([(b, section) for b in bullets])
 
+    if len(all_bullets) < 3:
+        for section_name, content in parsed_resume.items():
+            if any(exclude.lower() in section_name.lower() for exclude in exclude_sections):
+                continue
+            
+            if isinstance(content, str) and len(content.strip()) > 50:
+                extracted = extract_resume_content(content)
+                all_bullets.extend([(c, section_name) for c in extracted])
+
     if not all_bullets:
-        return {"error": "No bullet points found in resume"}
+        fallback_content = []
+        for section_name, content in parsed_resume.items():
+            if any(exclude.lower() in section_name.lower() for exclude in exclude_sections):
+                continue
+                
+            if isinstance(content, str) and len(content.strip()) > 20:
+                fallback_content.append((content.strip(), section_name))
+        
+        if fallback_content:
+            all_bullets = fallback_content[:5]
+        else:
+            optimizable_text = []
+            for section_name, content in parsed_resume.items():
+                if not any(exclude.lower() in section_name.lower() for exclude in exclude_sections):
+                    if isinstance(content, str) and len(content.strip()) > 20:
+                        optimizable_text.append(content)
+            
+            if optimizable_text:
+                combined_text = ' '.join(optimizable_text)
+                if len(combined_text) > 50:
+                    all_bullets = [(combined_text, "general")]
+
+    if not all_bullets:
+        return {"error": "No content found in resume for optimization"}
+
+    all_bullets = all_bullets[:20]
 
     try:
         response = client.chat.completions.create(
@@ -65,7 +158,7 @@ def optimize_resume_bullets(parsed_resume: dict, job_description: str) -> dict:
                         "2. Improve clarity and results\n"
                         "3. Quantify impact if possible\n"
                         "4. Use strong action verbs\n"
-                        "5. Don’t fabricate experience\n"
+                        "5. Don't fabricate experience\n"
                         "\nReturn JSON with optimized bullets, reasons, and keywords added."
                     )
                 },
