@@ -4,6 +4,14 @@
 
 ---
 
+## 🚀 Live Demo
+
+👉 **Try it here:** [AI Resume Tailoring Tool on Hugging Face](https://huggingface.co/spaces/siddharth0607/ai-resume-app)
+
+No installation needed - runs fully in the browser.
+
+---
+
 ## 🚀 Key Features
 
 - **Resume Parsing:** Extracts and structures data from PDF resumes.
