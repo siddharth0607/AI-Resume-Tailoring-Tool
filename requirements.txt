@@ -1,12 +1,6 @@
-streamlit
+treamlit
 openai
-langchain
-langchain-community
-PyPDF2
-pdfplumber
-deepdoctection
-torch
-torchvision
-torchaudio
---find-links https://download.pytorch.org/whl/torch_stable.html
 python-dotenv
+pdfplumber
+fpdf
+python-docx
