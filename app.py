@@ -32,59 +32,65 @@ if "parsed" not in st.session_state:
     st.session_state["jd_text"] = None
 
 if section == "Upload Resume & JD":
-    st.title("Upload Resume and Job Description")
+   st.title("Upload Resume and Job Description")
 
-    uploaded_resume = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
+   # File uploaders OUTSIDE the form
+   uploaded_resume = st.file_uploader("Upload Resume (PDF)", type=["pdf"], key="resume_file")
 
-    jd_input_method = st.radio(
-        "How would you like to provide the Job Description?",
-        ["Paste Job Description", "Upload JD File (.txt)"],
-        index=0
-    )
+   jd_input_method = st.radio(
+       "How would you like to provide the Job Description?",
+       ["Paste Job Description", "Upload JD File (.txt)"],
+       index=0
+   )
 
-    jd_text_input = None
-    jd_provided = False
+   jd_text_input = ""
+   jd_provided = False
 
-    if jd_input_method == "Paste Job Description":
-        jd_text_input = st.text_area(
-            "Paste the Job Description below",
-            height=250,
-            placeholder="Paste the job description you're applying to..."
-        )
-        jd_provided = bool(jd_text_input.strip())
+   if jd_input_method == "Upload JD File (.txt)":
+       uploaded_jd = st.file_uploader(
+           "Upload Job Description File (.txt)", 
+           type=["txt"], 
+           key="jd_file"
+       )
+       if uploaded_jd:
+           jd_text_input = uploaded_jd.read().decode("utf-8")
+           jd_provided = True
+           st.success("Job Description file uploaded successfully!")
 
-    elif jd_input_method == "Upload JD File (.txt)":
-        uploaded_jd = st.file_uploader("Upload Job Description File (.txt)", type=["txt"])
-        if uploaded_jd:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp_jd_file:
-                tmp_jd_file.write(uploaded_jd.read())
-                jd_path = tmp_jd_file.name
-            with open(jd_path, "r", encoding="utf-8") as f:
-                jd_text_input = f.read()
-                jd_provided = True
+   # Form only for the text area and submit button
+   with st.form("jd_resume_form"):
+       if jd_input_method == "Paste Job Description":
+           jd_text_input = st.text_area(
+               "Paste the Job Description below",
+               height=250,
+               placeholder="Paste the job description you're applying to...",
+               key="jd_text_area"
+           )
+           jd_provided = bool(jd_text_input.strip())
 
-    if uploaded_resume and jd_provided:
-        if st.button("Start Processing"):
-            with st.spinner("Parsing and formatting your resume..."):
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    tmp_file.write(uploaded_resume.read())
-                    resume_path = tmp_file.name
+       submitted = st.form_submit_button("Start Processing")
 
-                analyzer = initialize_analyzer()
-                parsed = parse_resume_sections(resume_path, analyzer)
-                formatted = format_resume_sections_with_llm(parsed)
+   if uploaded_resume and jd_provided and submitted:
+       with st.spinner("Parsing and formatting your resume..."):
+           with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+               tmp_file.write(uploaded_resume.read())
+               resume_path = tmp_file.name
 
-                st.session_state["parsed"] = parsed
-                st.session_state["formatted"] = formatted
-                st.session_state["jd_text"] = jd_text_input.strip()
+           analyzer = initialize_analyzer()
+           parsed = parse_resume_sections(resume_path, analyzer)
+           formatted = format_resume_sections_with_llm(parsed)
 
-                raw_resume_text = "\n".join(parsed.values())
-                st.session_state["extracted_fields"] = extract_fields_from_resume(raw_resume_text)
+           st.session_state["parsed"] = parsed
+           st.session_state["formatted"] = formatted
+           st.session_state["jd_text"] = jd_text_input.strip()
 
-            st.success("Resume and Job Description processed successfully.")
+           raw_resume_text = "\n".join(parsed.values())
+           st.session_state["extracted_fields"] = extract_fields_from_resume(raw_resume_text)
 
-    elif uploaded_resume and not jd_provided:
-        st.info("Please provide the Job Description to continue.")
+       st.success("Resume and Job Description processed successfully.")
+
+   elif uploaded_resume and not jd_provided and submitted:
+       st.info("Please provide the Job Description to continue.")
 
 if section == "Resume Contents":
     st.title("Resume Contents")
